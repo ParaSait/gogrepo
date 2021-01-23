@@ -103,14 +103,14 @@ GOG_MEDIA_TYPE_GAME  = '1'
 GOG_MEDIA_TYPE_MOVIE = '2'
 
 # HTTP request settings
-HTTP_FETCH_DELAY = 1   # in seconds
+HTTP_FETCH_DELAY = 0   # in seconds
 HTTP_RETRY_DELAY = 5   # in seconds
 HTTP_RETRY_COUNT = 3
-HTTP_GAME_DOWNLOADER_THREADS = 4
+HTTP_GAME_DOWNLOADER_THREADS = 1
 HTTP_PERM_ERRORCODES = (404, 403, 503)
 
 # Save manifest data for these os and lang combinations
-DEFAULT_OS_LIST = ['windows']
+DEFAULT_OS_LIST = ['windows', 'linux']
 DEFAULT_LANG_LIST = ['en']
 
 # These file types don't have md5 data from GOG
@@ -550,9 +550,9 @@ def cmd_login(user, passwd):
     with request(login_data['auth_url'], delay=0) as page:
         etree = html5lib.parse(page, namespaceHTMLElements=False)
         # Bail if we find a request for a reCAPTCHA
-        if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
-            error("cannot continue, gog is asking for a reCAPTCHA :(  try again in a few minutes.")
-            return
+        #if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
+        #    error("cannot continue, gog is asking for a reCAPTCHA :(  try again in a few minutes.")
+        #    return
         for elm in etree.findall('.//input'):
             if elm.attrib['id'] == 'login__token':
                 login_data['login_token'] = elm.attrib['value']
@@ -712,6 +712,7 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 # parse json data for downloads/extras/dlcs
                 filter_downloads(item.downloads, item_json_data['downloads'], lang_list, os_list)
                 filter_extras(item.extras, item_json_data['extras'])
+                
                 filter_dlcs(item, item_json_data['dlcs'], lang_list, os_list)
 
                 # update gamesdb with new item
@@ -722,12 +723,16 @@ def cmd_update(os_list, lang_list, skipknown, updateonly, id):
                 else:
                     gamesdb.append(item)
 
+                if not skipknown and (i % 10 == 0):
+                    info("quicksaving manifest...")
+                    save_manifest(gamesdb)
+
         except Exception:
             log_exception('error')
 
     # save the manifest to disk
+    info("saving manifest...")
     save_manifest(gamesdb)
-
 
 def cmd_import(src_dir, dest_dir):
     """Recursively finds all files within root_dir and compares their MD5 values
@@ -857,6 +862,7 @@ def cmd_download(savedir, skipextras, skipgames, skipids, dryrun, id):
 
         # Populate queue with all files to be downloaded
         for game_item in item.downloads + item.extras:
+            
             if game_item.name is None:
                 continue  # no game name, usually due to 404 during file fetch
             dest_file = os.path.join(item_homedir, game_item.name)
